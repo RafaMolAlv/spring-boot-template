@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -45,7 +46,8 @@ public class Movement {
     public Movement(Account account, MovementType type, BigDecimal amount, String description) {
         this.account = account;
         this.type = type;
-        this.amount = amount;
+        // Importes siempre con 2 decimales (céntimos), vengan como vengan en la petición
+        this.amount = amount.setScale(2, RoundingMode.HALF_UP);
         this.description = description;
         this.createdAt = LocalDateTime.now();
     }
