@@ -1,0 +1,7 @@
+services:
+  atm-api:
+    build: .
+    image: atm-api:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
