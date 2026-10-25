@@ -11,6 +11,7 @@ import es.nextdigital.demo.exception.ErrorCode;
 import es.nextdigital.demo.repository.AccountRepository;
 import es.nextdigital.demo.repository.AtmRepository;
 import es.nextdigital.demo.repository.MovementRepository;
+import es.nextdigital.demo.util.IbanValidator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,6 +68,43 @@ public class AtmOperationService {
         account.credit(amount);
         record(account, MovementType.DEPOSIT, amount, "Ingreso en cajero " + atm.getId());
         return new OperationResult(account.getIban(), amount, BigDecimal.ZERO, account.getBalance());
+    }
+
+    public OperationResult transfer(Long atmId, String cardNumber, String pin,
+                                    String destinationIban, BigDecimal amount, String concept) {
+        findAtm(atmId);
+        Card card = cardService.authenticateActive(cardNumber, pin);
+
+        String destination = IbanValidator.normalize(destinationIban);
+        if (!IbanValidator.isValid(destination)) {
+            throw new BusinessException(ErrorCode.INVALID_IBAN);
+        }
+        Account origin = card.getAccount();
+        if (destination.equals(origin.getIban())) {
+            throw new BusinessException(ErrorCode.SAME_ACCOUNT_TRANSFER);
+        }
+
+        boolean internal = bankProperties.code().equals(IbanValidator.spanishBankCode(destination));
+        BigDecimal fee = internal ? BigDecimal.ZERO : bankProperties.externalTransferFee();
+        if (amount.add(fee).compareTo(card.availableFunds()) > 0) {
+            throw new BusinessException(ErrorCode.INSUFFICIENT_FUNDS);
+        }
+        // Si la cuenta destino es nuestra, debe existir antes de mover dinero
+        Account target = internal
+                ? accountRepository.findByIban(destination)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND))
+                : null;
+
+        String suffix = concept == null || concept.isBlank() ? "" : " - " + concept;
+        origin.debit(amount);
+        record(origin, MovementType.TRANSFER_OUT, amount, "Transferencia a " + destination + suffix);
+        chargeFee(origin, fee, "Comisión transferencia a otra entidad");
+
+        if (target != null) {
+            target.credit(amount);
+            record(target, MovementType.TRANSFER_IN, amount, "Transferencia de " + origin.getIban() + suffix);
+        }
+        return new OperationResult(origin.getIban(), amount, fee, origin.getBalance());
     }
 
     private Atm findAtm(Long atmId) {
