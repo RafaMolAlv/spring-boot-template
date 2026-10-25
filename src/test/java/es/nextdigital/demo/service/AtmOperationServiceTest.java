@@ -148,6 +148,68 @@ class AtmOperationServiceTest {
         assertThat(account.getBalance()).isEqualByComparingTo("100.00");
     }
 
+    // ---------- Transferencias ----------
+
+    @Test
+    void internalTransferCreditsDestinationWithoutFee() {
+        givenCard(CardType.DEBIT, "500", null);
+        Account target = new Account(INTERNAL_IBAN, new BigDecimal("10.00"), customer(2L));
+        when(accountRepository.findByIban(INTERNAL_IBAN)).thenReturn(Optional.of(target));
+
+        OperationResult result = service.transfer(1L, CARD, PIN, INTERNAL_IBAN, new BigDecimal("30"), "Cena");
+
+        assertThat(result.fee()).isEqualByComparingTo("0");
+        assertThat(account.getBalance()).isEqualByComparingTo("70.00");
+        assertThat(target.getBalance()).isEqualByComparingTo("40.00");
+        assertThat(savedTypes()).containsExactly(MovementType.TRANSFER_OUT, MovementType.TRANSFER_IN);
+    }
+
+    @Test
+    void externalTransferChargesFee() {
+        givenCard(CardType.DEBIT, "500", null);
+
+        OperationResult result = service.transfer(1L, CARD, PIN, EXTERNAL_IBAN, new BigDecimal("30"), null);
+
+        assertThat(result.fee()).isEqualByComparingTo("1.50");
+        assertThat(account.getBalance()).isEqualByComparingTo("68.50");
+        assertThat(savedTypes()).containsExactly(MovementType.TRANSFER_OUT, MovementType.FEE);
+        verify(accountRepository, never()).findByIban(any());
+    }
+
+    @Test
+    void transferToInvalidIbanIsRejected() {
+        givenCard(CardType.DEBIT, "500", null);
+
+        assertError(() -> service.transfer(1L, CARD, PIN, "ES0000000000000000000000", BigDecimal.ONE, null),
+                ErrorCode.INVALID_IBAN);
+    }
+
+    @Test
+    void transferToSameAccountIsRejected() {
+        givenCard(CardType.DEBIT, "500", null);
+
+        assertError(() -> service.transfer(1L, CARD, PIN, ORIGIN_IBAN, BigDecimal.ONE, null),
+                ErrorCode.SAME_ACCOUNT_TRANSFER);
+    }
+
+    @Test
+    void transferWithoutFundsIsRejected() {
+        givenCard(CardType.DEBIT, "500", null);
+
+        assertError(() -> service.transfer(1L, CARD, PIN, EXTERNAL_IBAN, new BigDecimal("99"), null),
+                ErrorCode.INSUFFICIENT_FUNDS);
+    }
+
+    @Test
+    void transferToUnknownInternalAccountIsRejectedWithoutMovingMoney() {
+        givenCard(CardType.DEBIT, "500", null);
+        when(accountRepository.findByIban(INTERNAL_IBAN)).thenReturn(Optional.empty());
+
+        assertError(() -> service.transfer(1L, CARD, PIN, INTERNAL_IBAN, BigDecimal.ONE, null),
+                ErrorCode.ACCOUNT_NOT_FOUND);
+        assertThat(account.getBalance()).isEqualByComparingTo("100.00");
+    }
+
     // ---------- Helpers ----------
 
     private void givenCard(CardType type, String withdrawalLimit, String creditLimit) {

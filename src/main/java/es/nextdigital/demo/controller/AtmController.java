@@ -2,6 +2,7 @@ package es.nextdigital.demo.controller;
 
 import es.nextdigital.demo.controller.dto.AmountRequest;
 import es.nextdigital.demo.controller.dto.PinChangeRequest;
+import es.nextdigital.demo.controller.dto.TransferRequest;
 import es.nextdigital.demo.service.AtmOperationService;
 import es.nextdigital.demo.service.CardService;
 import es.nextdigital.demo.service.OperationResult;
@@ -56,5 +57,12 @@ public class AtmController {
     public OperationResult deposit(@PathVariable Long atmId, @PathVariable String cardNumber,
                                    @Valid @RequestBody AmountRequest request) {
         return operationService.deposit(atmId, cardNumber, request.pin(), request.amount());
+    }
+
+    @PostMapping("/transfers")
+    public OperationResult transfer(@PathVariable Long atmId, @PathVariable String cardNumber,
+                                    @Valid @RequestBody TransferRequest request) {
+        return operationService.transfer(atmId, cardNumber, request.pin(), request.destinationIban(),
+                request.amount(), request.concept());
     }
 }
