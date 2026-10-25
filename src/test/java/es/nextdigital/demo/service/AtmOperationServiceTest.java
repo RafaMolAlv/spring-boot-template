@@ -210,6 +210,29 @@ class AtmOperationServiceTest {
         assertThat(account.getBalance()).isEqualByComparingTo("100.00");
     }
 
+    // ---------- Movimientos ----------
+
+    @Test
+    void movementsOfAnotherAccountOfTheSameCustomer() {
+        givenCard(CardType.DEBIT, "500", null);
+        Account other = new Account(INTERNAL_IBAN, BigDecimal.ZERO, owner);
+        ReflectionTestUtils.setField(other, "id", 7L);
+        when(accountRepository.findByIban(INTERNAL_IBAN)).thenReturn(Optional.of(other));
+        List<Movement> expected = List.of(new Movement(other, MovementType.DEPOSIT, BigDecimal.TEN, "x"));
+        when(movementRepository.findByAccountIdOrderByCreatedAtDescIdDesc(7L)).thenReturn(expected);
+
+        assertThat(service.movements(1L, CARD, PIN, INTERNAL_IBAN)).isEqualTo(expected);
+    }
+
+    @Test
+    void movementsOfSomeoneElsesAccountAreForbidden() {
+        givenCard(CardType.DEBIT, "500", null);
+        when(accountRepository.findByIban(INTERNAL_IBAN))
+                .thenReturn(Optional.of(new Account(INTERNAL_IBAN, BigDecimal.ZERO, customer(2L))));
+
+        assertError(() -> service.movements(1L, CARD, PIN, INTERNAL_IBAN), ErrorCode.ACCOUNT_NOT_OWNED);
+    }
+
     // ---------- Helpers ----------
 
     private void givenCard(CardType type, String withdrawalLimit, String creditLimit) {

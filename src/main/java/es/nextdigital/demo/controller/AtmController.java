@@ -1,7 +1,9 @@
 package es.nextdigital.demo.controller;
 
 import es.nextdigital.demo.controller.dto.AmountRequest;
+import es.nextdigital.demo.controller.dto.MovementResponse;
 import es.nextdigital.demo.controller.dto.PinChangeRequest;
+import es.nextdigital.demo.controller.dto.PinRequest;
 import es.nextdigital.demo.controller.dto.TransferRequest;
 import es.nextdigital.demo.service.AtmOperationService;
 import es.nextdigital.demo.service.CardService;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 
 /**
  * API a la que se conectan los cajeros. Todas las operaciones se hacen en un cajero ({atmId})
@@ -64,5 +67,14 @@ public class AtmController {
                                     @Valid @RequestBody TransferRequest request) {
         return operationService.transfer(atmId, cardNumber, request.pin(), request.destinationIban(),
                 request.amount(), request.concept());
+    }
+
+    /** POST en lugar de GET para no enviar el PIN en la URL. */
+    @PostMapping("/accounts/{iban}/movements")
+    public List<MovementResponse> movements(@PathVariable Long atmId, @PathVariable String cardNumber,
+                                            @PathVariable String iban, @Valid @RequestBody PinRequest request) {
+        return operationService.movements(atmId, cardNumber, request.pin(), iban).stream()
+                .map(MovementResponse::from)
+                .toList();
     }
 }
