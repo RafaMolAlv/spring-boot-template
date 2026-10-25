@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @Transactional
@@ -105,6 +106,20 @@ public class AtmOperationService {
             record(target, MovementType.TRANSFER_IN, amount, "Transferencia de " + origin.getIban() + suffix);
         }
         return new OperationResult(origin.getIban(), amount, fee, origin.getBalance());
+    }
+
+    @Transactional(readOnly = true)
+    public List<Movement> movements(Long atmId, String cardNumber, String pin, String iban) {
+        findAtm(atmId);
+        Card card = cardService.authenticateActive(cardNumber, pin);
+
+        Account account = accountRepository.findByIban(IbanValidator.normalize(iban))
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACCOUNT_NOT_FOUND));
+        Long ownerId = card.getAccount().getCustomer().getId();
+        if (!ownerId.equals(account.getCustomer().getId())) {
+            throw new BusinessException(ErrorCode.ACCOUNT_NOT_OWNED);
+        }
+        return movementRepository.findByAccountIdOrderByCreatedAtDescIdDesc(account.getId());
     }
 
     private Atm findAtm(Long atmId) {
