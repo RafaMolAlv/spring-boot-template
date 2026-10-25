@@ -1,7 +1,10 @@
 package es.nextdigital.demo.controller;
 
+import es.nextdigital.demo.controller.dto.AmountRequest;
 import es.nextdigital.demo.controller.dto.PinChangeRequest;
+import es.nextdigital.demo.service.AtmOperationService;
 import es.nextdigital.demo.service.CardService;
+import es.nextdigital.demo.service.OperationResult;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AtmController {
 
     private final CardService cardService;
+    private final AtmOperationService operationService;
 
-    public AtmController(CardService cardService) {
+    public AtmController(CardService cardService, AtmOperationService operationService) {
         this.cardService = cardService;
+        this.operationService = operationService;
     }
 
     @PostMapping("/activation")
@@ -39,5 +44,17 @@ public class AtmController {
     public void changePin(@PathVariable Long atmId, @PathVariable String cardNumber,
                           @Valid @RequestBody PinChangeRequest request) {
         cardService.changePin(cardNumber, request.currentPin(), request.newPin());
+    }
+
+    @PostMapping("/withdrawals")
+    public OperationResult withdraw(@PathVariable Long atmId, @PathVariable String cardNumber,
+                                    @Valid @RequestBody AmountRequest request) {
+        return operationService.withdraw(atmId, cardNumber, request.pin(), request.amount());
+    }
+
+    @PostMapping("/deposits")
+    public OperationResult deposit(@PathVariable Long atmId, @PathVariable String cardNumber,
+                                   @Valid @RequestBody AmountRequest request) {
+        return operationService.deposit(atmId, cardNumber, request.pin(), request.amount());
     }
 }
